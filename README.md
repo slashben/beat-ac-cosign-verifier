@@ -1,8 +1,10 @@
 # Beating container signature validation in Kubernetes Admission Controllers
 
+![Image validation in admission controller](docs/one.jpg "Title")
+
 This repository contains all the scripts and artifacts which you need to re-run the proof of concept attack which I did on a Kubernetes cluster and Kyverno Admission Controller to prove that the current architecture is not secure against malicious proxies and registries.
 
-If you already know everything and just want to re-run the attack, go to direcly to [reproducing the attack section](#reproducing-the-attack)
+If you already know everything and just want to re-run the attack, go to direcly to [reproducing the attack section](#reproducing-the-attack) :sunglasses:
 
 # Background
 
@@ -69,13 +71,9 @@ The attack steps are as follows:
 
 # Reproducing the attack
 
-{% note %}
-
 **Note:** Since image registry API assumes HTTPS (for good!) the attacker must obtain a valid TLS Certificate for the proxy/server. In this POC I decided to create my own Root CA and embed it both Kubernetes and Kyverno to bypass this problem. This is not an ideal choice for a real life attacker who could solve this in different ways (for example: buying a domain and obtaining Let's Encrypt signed certificate for that domain). 
 
 Note that the way I solved this here is not limiting the problem, but helps this demontration to be more easily to demostrate.
-
-{% endnote %}
 
 ## Setting up the cluster
 
