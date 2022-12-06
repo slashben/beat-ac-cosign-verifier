@@ -79,6 +79,12 @@ Note that the way I solved this here is not limiting the problem, but helps this
 
 ## Setting up the cluster
 
+### Run the script
+I have prepared a convinient script (tested on Ubuntu)
+```shell{:copy}
+./setup-cluster.sh
+```
+If you want to do it yourself, do the following steps otherwise skip to [Setting up malicious proxy](#setting-up-malicious-proxy)
 ### Minikube 
 Creating a minikube instance with an added root CA certificate (see note above).
 ```shell{:copy}
@@ -122,20 +128,61 @@ And this should succed
 kubectl -n signed run signed --image=hisu/cosign-tests:signed --image-pull-policy='Always'
 ```
 
+## Setting up malicious proxy
+
+The IP of your proxy is important for the sake of this demonstration. It needs to be accessible both for the node (image pull by the container runtime) and the admission controller POD (checking image signature).
+
+Let's bring up the malicious proxy. I have created a simple script to create signed certificate for the proxy and start the proxy. To run:
+```shell{:copy}
+./setup-malicious-proxy.sh <IP>
+```
 
 ## Showing attack
 
-Let's bring up the malicious proxy:
+### Running the guided script
 
+You can run also the following script to run through all the positive and negative cases:
 ```shell{:copy}
-python proxy-server.py
+$ ./running-attack-tests.sh <IP>
+1> Trying to run unsigned image in signed namespace
+----------------------------------------
+kubectl -n signed run unsigned --image=hisu/cosign-tests:unsigned --image-pull-policy=Always
+Error from server: admission webhook "mutate.kyverno.svc-fail" denied the request: 
+
+policy Pod/signed/unsigned for resource violation: 
+
+check-image:
+  check-image: |
+    failed to verify image docker.io/hisu/cosign-tests:unsigned: .attestors[0].entries[0].keys: no matching signatures:
+----------------------------------------
+Press enter to continue
+2> Trying to run signed image in signed namespace
+----------------------------------------
+kubectl -n signed run signed --image=hisu/cosign-tests:signed --image-pull-policy=Always
+pod/signed created
+----------------------------------------
+2> Succeeded to run signed image in signed namespace
+Press enter to continue
+3> Trying to run unsigned image in signed namespace by using the proxy
+----------------------------------------
+kubectl -n signed run unsigned --image=10.100.102.57:4443/hisu/cosign-tests:unsigned --image-pull-policy=Always
+pod/unsigned created
+----------------------------------------
+ ___ _   _  ___ ___ ___  ___ ___ 
+/ __| | | |/ __/ __/ _ \/ __/ __|
+\__ \ |_| | (_| (_|  __/\__ \__ \
+|___/\__,_|\___\___\___||___/___/
+
+3> Succeeded to run unsigned image in signed namespace by using the proxy
+Press enter to continue
+pod "unsigned" deleted
+pod "signed" deleted
 ```
 
-**Note**: the cluster should see the host at the IP address 10.0.2.15 . If this is not the case, please adopt the next steps to the different IP by creating a different certificate for the the proxy with a SAN containing the new IP.
-
+### Running a standalone unsigned image
 If you run:
 ```shell{:copy}
-kubectl -n signed run unsigned --image=10.0.2.15:4443/hisu/cosign-tests:unsigned --image-pull-policy='Always'
+kubectl -n signed run unsigned --image=<IP>:4443/hisu/cosign-tests:unsigned --image-pull-policy='Always'
 ```
 It should pass admission despite it is not signed. In the background the malicious proxy gave the addmission controller a signed image and gave the container runtime the unsigned one.
 
