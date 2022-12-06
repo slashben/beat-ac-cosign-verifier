@@ -23,6 +23,10 @@ openssl req -new -key proxy-server-clear.key -out proxy-server-$IP_DASHED.csr -c
 truncate -s 0 ca.db.index
 
 # Sign the certificate signing request
-openssl ca -batch -config ca.conf -in proxy-server-$IP_DASHED.csr -out proxy-server-$IP_DASHED.crt 
+openssl ca -batch -config ca.conf -in proxy-server-$IP_DASHED.csr -out proxy-server-$IP_DASHED.crt || exit 1
+
+cp proxy-server-$IP_DASHED.crt proxy-server.crt
+
+echo "Generated certificate for IP address $IP"
 
 popd
