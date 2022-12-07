@@ -25,7 +25,7 @@ if ! minikube status | grep -q "host: Running"; then
 fi
 
 # Check if proxy running on the given IP address and port 4443
-if ! curl -s -k -v https://$IP:4443 |& grep -q "200 OK"; then
+if ! curl -s -k -v https://$IP:4443 2>&1 | grep -q "200 OK"; then
     echo "Proxy server is not running on IP address $IP"
     exit
 fi
