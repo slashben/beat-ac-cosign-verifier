@@ -1,8 +1,6 @@
 # Beating container signature validation in Kubernetes Admission Controllers
 
-![Image validation in admission controller](docs/one.jpg "Title")
-
-This repository contains all the scripts and artifacts which you need to re-run the proof of concept attack which I did on a Kubernetes cluster and Kyverno Admission Controller to prove that the current architecture is not secure against malicious proxies and registries.
+This repository contains all the scripts and artifacts which you need to re-run the proof of concept attack which I did on a Kubernetes cluster and Kyverno Admission Controller.
 
 If you already know everything and just want to re-run the attack, go to direcly to [reproducing the attack section](#reproducing-the-attack) :sunglasses:
 
@@ -12,7 +10,7 @@ Supply-chain security is a deeply discussed topic in the Cloud Native community 
 
 Software components should be validated in every step from development to production. The integrity of container images is key to ensuring that only verified code is running in a Kubernetes cluster.
 
-In order to protect the Kubernetes cluster, multiple Admission Controller vendors started to offer policies that can enforce container image signatures. In other words, they claim that in order to protect your cluster, you can create a policy to only have validated images running inside the cluster.
+In order to protect the Kubernetes cluster, multiple Admission Controller vendors started to offer policies that can enforce container image signatures. 
 
 # Image signature validation in admission controllers
 Here is the way signature validation works in admission controllers. (see drawing and steps below)
@@ -31,7 +29,7 @@ Here is the way signature validation works in admission controllers. (see drawin
 
 # The potential issue in this architecture
 
-There is a classic “TOCTOU” security problem here. The image signatures are checked by the Admission Controller. However, from a system perspective, it is far from the place where the image is used (in the node).
+There is a classic “TOCTOU” security problem here. The image signatures are checked by the Admission Controller. IMHO, from a system perspective, it is far from the place where the image is used (in the node).
 
 **Admission Controller vendors went for a great length implementing this correctly**, however there is a potential source of problem here when verifing signatures: The verifier and the user are two different entities that are running in different services and at different times. 
 
