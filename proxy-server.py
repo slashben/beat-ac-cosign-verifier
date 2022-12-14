@@ -6,6 +6,8 @@ import ssl
 from socketserver import ThreadingMixIn
 import requests
 
+__REQUEST_COUNTER__ = 0
+
 # https://gist.github.com/dergachev/7028596
 class ThreadingServer(ThreadingMixIn, HTTPServer):
     pass
@@ -23,8 +25,13 @@ class ProxyHTTPRequestHandler(SimpleHTTPRequestHandler):
 
         # The trick is here!        
         target_path = self.path
-        if 'go-containerregistry' in self.headers['User-Agent'] and 'unsigned' in self.path:
-            target_path = self.path.replace('unsigned','signed')
+
+        global __REQUEST_COUNTER__
+        if 'go-containerregistry' in self.headers['User-Agent'] and 'manifests/signed' in self.path:
+            if __REQUEST_COUNTER__ % 2 == 1:
+                print(">>> Redirecting to unsigned manifest")
+                target_path = self.path.replace('manifests/signed','manifests/unsigned')
+            __REQUEST_COUNTER__ += 1
 
         url = "https://index.docker.io"+target_path
 

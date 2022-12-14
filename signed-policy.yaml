@@ -19,6 +19,7 @@ spec:
       verifyImages:
       - imageReferences:
         - "*"
+        verifyDigest: false
         attestors:
         - count: 1
           entries:

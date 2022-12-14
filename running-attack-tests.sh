@@ -59,21 +59,48 @@ fi
 read -p "Press enter to continue"
 
 # Show that we can trick the system to run the unsigned image by using the proxy in the signed namespace
-echo "3> Trying to run unsigned image in signed namespace by using the proxy"
+echo "3> Trying to run signed image in signed namespace by using the proxy"
 echo "----------------------------------------"
-echo kubectl -n signed run unsigned --image=$IP:4443/hisu/cosign-tests:unsigned --image-pull-policy='Always' 
-kubectl -n signed run unsigned --image=$IP:4443/hisu/cosign-tests:unsigned --image-pull-policy='Always' 
+echo kubectl -n signed run unsigned --image=$IP:4443/hisu/cosign-tests:signed --image-pull-policy='Always' 
+kubectl -n signed run unsigned --image=$IP:4443/hisu/cosign-tests:signed --image-pull-policy='Always' 
 echo "----------------------------------------"
 # Check if last command succeeded as expected
-if [ $? -eq 0 ]; then
+if [ $? -ne 0 ]; then
+    echo "3> Failed to run signed image in signed namespace by using the proxy"
+    exit 1    
+fi
+
+
+# Wait for the pod to be ready
+echo "3> Waiting for pod to be ready"
+kubectl -n signed wait --for=condition=ready pod/unsigned
+
+# Check the HTTP response from the pod
+echo "3> Checking HTTP response from the pod"
+echo "----------------------------------------"
+# Setup port forwarding to the pod
+kubectl -n signed port-forward pod/unsigned 8080:80 &
+# Wait for 5 seconds for the port forwarding to be ready
+sleep 5
+# Save pid of the port forwarding process
+PID=$!
+echo curl -s -k -v http://localhost:8080
+RESPONSE=`curl -s -k -v http://localhost:8080`
+kill $PID
+echo $RESPONSE
+if [[ $RESPONSE == *"Hacked"* ]]; then
     # Print ascii art of success
     echo " ___ _   _  ___ ___ ___  ___ ___ "
     echo "/ __| | | |/ __/ __/ _ \/ __/ __|"
     echo "\__ \ |_| | (_| (_|  __/\__ \__ \\"
     echo "|___/\__,_|\___\___\___||___/___/"
     echo
-    echo "3> Succeeded to run unsigned image in signed namespace by using the proxy"
+    echo "3> Proxy could inject an unsigned image in signed namespace"
+else
+    echo "3> HTTP response from the pod is incorrect"
 fi
+echo "----------------------------------------"
+
 
 # prompt user to continue
 read -p "Press enter to continue"
