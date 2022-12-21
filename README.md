@@ -1,4 +1,4 @@
-# ☢️ CVE-2022-47633: POC on "Bypassing container signature validation in Kubernetes Admission Controllers" ☢️
+# ☢️ CVE-2022-47633: Bypassing container signature validation in Kyverno ☢️
 
 This repository contains all the scripts and artifacts which you need to re-run the proof of concept attack which I did on a Kubernetes cluster and Kyverno Admission Controller.
 
@@ -12,7 +12,7 @@ The vulnerability was introduced in version 1.8.3 and was fixed in version 1.8.5
 
 # Background stuff 📖
 
-## Why? ❓
+## Why this is interesting ❓
 Supply chain security is a thoroughly discussed topic in the Cloud Native community. It comes as no surprise that projects like Kyverno have started to incorporate supply-chain security measures into their offerings.
 
 In order to secure supply chains, validation of software components should happen at every step from development to production. Container images are an obvious potential attack vector, so it is critical that they are validated to ensure that only verified code is running in a Kubernetes cluster. If an attacker is able to control the contents of an image that is pulled into the cluster, the attacker can effectively take control of a victim’s pod and use all of its assets and credentials, including the service account token to access the API server.
@@ -59,7 +59,7 @@ The proxy server behaves in the following way: if it sees that the Admission Con
 
 ![Image validation in admission controller](docs/dia2.png "Title")
 
-## Setup
+## Steps
 
 The attack steps are as follows:
 
