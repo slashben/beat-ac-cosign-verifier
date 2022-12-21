@@ -1,42 +1,53 @@
-# Bypassing container signature validation in Kubernetes Admission Controllers
+# ☢️ CVE-2022-47633: POC on "Bypassing container signature validation in Kubernetes Admission Controllers" ☢️
 
 This repository contains all the scripts and artifacts which you need to re-run the proof of concept attack which I did on a Kubernetes cluster and Kyverno Admission Controller.
 
 If you already know everything and just want to re-run the attack, go to direcly to [reproducing the attack section](#reproducing-the-attack) :sunglasses:
 
-# Background
+# Short description
 
-Supply-chain security is a thoroughly discussed topic in the Cloud Native community. So it comes as no surprise that projects like Kyverno have started to incorporate supply-side security measures into their offerings.
+Security researchers at [ARMO](https://armosec.io) have found a high-severity vulnerability in the Kyverno admission controller container image signature verification mechanism. The vulnerability enables an attacker who is either running a malicious container image registry, or is able to act as a proxy between the registry and Kyverno, to inject unsigned images into the protected cluster, bypassing the image verification policy. 
 
-In order to secure supply chains, validating software components should happen at every step from development to production. Container images are an obvious potential attack vector, so it is critical that container images are validated to ensure that only verified code is running in a Kubernetes cluster. If an attacker is able to control the contents of an image that is pulled into the Kubernetes cluster, the attacker can effectively take control of the workload.
+The vulnerability was introduced in version 1.8.3 and was fixed in version 1.8.5. 
 
-In order to protect the Kubernetes cluster against malicious container images, multiple Admission Controller solutions vendors started to offer policies that can enforce container image signatures. Their main claim is that with an Admission Controller, users can create a policy to only have validated images running inside the cluster.
+# Background stuff 📖
+
+## Why? ❓
+Supply chain security is a thoroughly discussed topic in the Cloud Native community. It comes as no surprise that projects like Kyverno have started to incorporate supply-chain security measures into their offerings.
+
+In order to secure supply chains, validation of software components should happen at every step from development to production. Container images are an obvious potential attack vector, so it is critical that they are validated to ensure that only verified code is running in a Kubernetes cluster. If an attacker is able to control the contents of an image that is pulled into the cluster, the attacker can effectively take control of a victim’s pod and use all of its assets and credentials, including the service account token to access the API server.
+
+In order to protect a Kubernetes cluster against malicious container images, security-focused  admission controllers offer policies that can enforce container image signatures. Their promise is that with an admission controller, users can create a policy to only have validated images running inside the cluster.
 
 
-# Image signature validation flow in Admission Controllers
+## Image signature validation flow in Admission Controllers ✍️
 Here is the way signature validation works in admission controllers. (see drawing and steps below)
 
-1. A new workload based on a “image tag” is requested from the cluster through the Kubernetes API server.
-2. The API server will ask the Admission Controller to validate the new workload. The Admission Controller decides whether it can be admitted to the cluster.
-3. The Admission Controller, which is configured to validate the image signature, requests the image and the signature from the container registry.
-4. The container registry supplies both the signature and the image itself. 
-5. Depending on whether the image and the signature are correct, the Admission Controller allows the new workload into the cluster. To prevent spoofing, Kyverno changes the image to be pulled by “image hash” and not “image tag”.
-6. The API server asks Kubelet to start the new workload.
-7. Kubelet asks the container runtime to start a new container based on the “image tag” from step 5.
-8. Container runtime downloads the image (again) from the container registry.
-9. Container runtime starts the new container based on the image.
+1. A new workload, defined via an image with a tag, is requested from the Kubernetes API server.
+2. The API server asks the admission controller to validate the new workload. The admission controller controls whether a workload can be started on (“admitted to”) the cluster.
+3. The admission controller, configured to validate the image signature, requests the image manifest and the signature from the container registry.
+4. The container registry supplies both the signature and the image manifest itself. 
+5. Depending on whether the image manifest and the signature are correct, the admission controller allows the new workload into the cluster. To prevent spoofing, Kyverno changes the image to be pulled by its cryptographic hash, and not its tag, which is mutable.
+6. The API server asks the Kubelet to start the new workload.
+7. The Kubelet asks the container runtime to start a new container based on the image and hash from step 5.
+8. The container runtime downloads the image manifest and its layers from the container registry.
+9. The container runtime starts the new container based on the image.
 
 
 ![Image validation in admission controller](docs/dia1.png "Title")
 
-# The attack
+# The attack 🔪 🏴‍☠️
 
-The goal is to inject an unsigned image inside a namespace in the cluster which should only be running signed images.
+## Goal
 
-In this attack, we assume the attacker controls a container registry (“malicious container registry”) or has set up a proxy between the registry and the target. The attacker attempts to trick the user into running a Pod with an image from this registry. Meanwhile, the cluster administrator has a policy in place to protect the cluster from malicious images by enforcing container signatures. From the cluster administrator's perspective, no unsigned images can be admitted into the cluster.
+An attacker’s goal may be to inject an unsigned image into a cluster which should only be running signed images.
+
+In this attack, we assume the attacker controls a malicious container registry, or has set up a proxy between the registry and the target. The attacker attempts to trick the user into running a Pod with an image from this registry. Meanwhile, the cluster administrator has a policy in place to protect the cluster from malicious images by enforcing container signatures. From the cluster administrator's perspective, no unsigned images can be admitted into the cluster.
 
 
-In the POC I had the following components in my hand:
+## Setup
+
+In the POC we had the following components in our hand:
 * Minikube + Kyverno (added my Root CA certificate to both, did this to make the POC simpler, however, could have been more sophisticated with a “Let’s Encrypt” cerficiate)
 * Container signing key-pair
 * Namespace called “signed” with an enforced policy on image signatures (with the public key of the keypair)
@@ -48,30 +59,38 @@ The proxy server behaves in the following way: if it sees that the Admission Con
 
 ![Image validation in admission controller](docs/dia2.png "Title")
 
+## Setup
+
 The attack steps are as follows:
-1. The user is convinced to run the signed image from the “Malicious proxy”. 
+
+1. The user is convinced to run the signed image from the malicious container registry, or to use a malicious proxy to download images. 
 2. The API server asks the admission controller for approval.
-3. The Admission Controller asks for the image manifest based on the “image tag”. Based on the manifest, it gets the “image hash” and asks for the signature from the “signed image” based on “image hash”.
-4. The malicious proxy returns the “signed image” signature to the Admission Controller.
-5. The Admission Controller verifies the signature of the signed image.
-6. Due to the software bug, the Admission Controller requests the manifest of the signed image for the second time to get the digest for mutation.
-7. The malicious proxy returns the manifest of a different image – this one unsigned and malicious.
-8. The Admission Controller changes the image in the Pod spec from “image tag” to “image hash” (mutation) and gives approval to the API server.
-9. Kubelet is asked to start the Pod based on the unsigned image.
+3. The admission controller asks for the image manifest based on the image tag. Based on the manifest, it gets the image hash and asks for the signature for the signed image based on image hash.
+4. The malicious proxy returns the signed image signature to the admission controller.
+5. The admission controller verifies the signature of the signed image.
+6. Due to a bug in Kyverno, the admission controller requests the manifest of the signed image for a second time to get the digest for mutation.
+7. The malicious registry returns the manifest of a different image – this one unsigned and malicious.
+8. The admission controller changes (mutates) the image in the Pod spec from image tag to image hash and gives approval to the API server.
+9. The Pod starts, running the unsigned image.
+
 
 Malicious proxy code can be seen [here](proxy-server.py)
 
 **The container is started based on the unsigned image**
 
-The problem is that the image from the container image manifest is downloaded twice. It is pulled once for signature validation and a second time for mutating the image name in the Pod spec. This is a classic example of a [TOCTOU](https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use) problem that allows the attacker to pull a bait-and-switch. Since the image manifest which will eventually be used is not the same as the one which was verified, this enables the attacker to trick the software.
+The problem is that the image manifest is downloaded twice. It is pulled once for signature validation and a second time for mutating the image name in the Pod spec. This is a classic example of a [TOCTOU](https://en.wikipedia.org/wiki/Time-of-check_to_time-of-use) problem that allows the attacker to pull a bait-and-switch. Since the image manifest which will eventually be used is not the same as the one which was verified, this enables the attacker to trick the client.
 
-# Mitigation
-Kyverno went to great lengths to protect users and implements a very good mechanism to verify container images against supply chain attacks. Kyverno automatically substitutes the image tag for the digest on first use. 
+## Summary
+Kyverno implements a mechanism to verify container images against supply chain attacks. It automatically substitutes the image tag for the digest on first use. However, a bug introduced in Kyverno 1.8.3 can cause multiple tag-based queries to the image registry, which can be exploited by attackers. This problem has been fixed promptly by the Kyverno team, in version 1.8.5, and users should update to the latest version. The fix ensures that the same image hash is used to change the workload specification as was used to verify the signature. 
 
-However, software bugs or non-tested code can cause multiple tag-based queries to the image registry as foundtag based in Kyverno version 1.8.3, which can be exploited by attackers. 
+Additional recommendations: 
+Implement a policy that only allows trusted registries, which would prevent the malicious registry from being used. 
+Use Kubescape to scan container image registries in order to make sure you’re not pulling malicious images. Kubescape has developed a dedicated control – C-0091– in the ARMOBest framework verifying if this CVE exists in your cluster. Please install or update to the latest Kubescape version from GitHub, or via the following command:
 
-This problem has been promptly fixed by the Kyverno team, in version 1.8.5, and users should update to the latest version. The fix ensures that the same image hash is used to change the workload specification as was used to verify the signature. An additional recommended mitigation is to implement a policy that only allows trusted registries, which would prevent the malicious proxy from being used.
-
+```bash
+curl -s https://raw.githubusercontent.com/armosec/kubescape/master/install.sh | /bin/bash
+kubescape scan control C-0091
+```
 
 # Reproducing the attack
 
